@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { isRelayDownloadable, isVideoMedia } from "./mediaEntry.ts";
+import {
+  hasAlphaChannel,
+  isRelayDownloadable,
+  isVideoMedia,
+} from "./mediaEntry.ts";
 
 const RELAY = "https://relay.example.com";
 const relayUrl = (name) => `${RELAY}/media/${name}`;
@@ -108,4 +112,50 @@ test("isRelayDownloadable: unresolved → off-relay origin keeps an external URL
   assert.equal(isRelayDownloadable(src, undefined), false);
   // Origin resolves to a different (relay) origin → still hidden.
   assert.equal(isRelayDownloadable(src, RELAY), false);
+});
+
+// ── hasAlphaChannel: MIME-first, fails open ──────────────────────────────
+
+test("hasAlphaChannel: JPEG MIME is opaque regardless of extension", () => {
+  assert.equal(hasAlphaChannel(relayUrl("abc.png"), "image/jpeg"), false);
+  assert.equal(hasAlphaChannel(relayUrl("abc"), "image/jpg"), false);
+  assert.equal(hasAlphaChannel(relayUrl("abc"), "IMAGE/JPEG"), false);
+});
+
+test("hasAlphaChannel: a MIME parameter does not defeat the opaque check", () => {
+  assert.equal(
+    hasAlphaChannel(relayUrl("abc"), "image/jpeg; charset=binary"),
+    false,
+  );
+});
+
+test("hasAlphaChannel: alpha-capable MIME wins for an extensionless relay URL", () => {
+  assert.equal(hasAlphaChannel(relayUrl("deadbeef"), "image/png"), true);
+  assert.equal(hasAlphaChannel(relayUrl("deadbeef"), "image/webp"), true);
+  assert.equal(hasAlphaChannel(relayUrl("abc.jpg"), "image/png"), true);
+});
+
+test("hasAlphaChannel: legacy jpeg extensions are opaque when no MIME is present", () => {
+  assert.equal(hasAlphaChannel(relayUrl("abc.jpg")), false);
+  assert.equal(hasAlphaChannel(relayUrl("abc.jpeg")), false);
+  assert.equal(hasAlphaChannel(relayUrl("abc.JPG")), false);
+});
+
+test("hasAlphaChannel: png/gif/webp/avif extensions carry alpha", () => {
+  for (const ext of ["png", "gif", "webp", "avif", "svg"]) {
+    assert.equal(hasAlphaChannel(relayUrl(`abc.${ext}`)), true, ext);
+  }
+});
+
+test("hasAlphaChannel: unknown format fails open so transparency is never missed", () => {
+  // A checkerboard behind an opaque image is covered once it decodes; a missed
+  // transparent one composites onto the app surface. Guess toward the former.
+  assert.equal(hasAlphaChannel(relayUrl("deadbeef")), true);
+  assert.equal(hasAlphaChannel(relayUrl("abc.heic")), true);
+  assert.equal(hasAlphaChannel("not a url at all"), true);
+});
+
+test("hasAlphaChannel: query strings and hashes do not hide the extension", () => {
+  assert.equal(hasAlphaChannel(`${relayUrl("abc.jpg")}?w=64`), false);
+  assert.equal(hasAlphaChannel(`${relayUrl("abc.jpg")}#frag`), false);
 });

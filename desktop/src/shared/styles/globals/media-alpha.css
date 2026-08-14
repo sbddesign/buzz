@@ -1,0 +1,42 @@
+/*
+ * Alpha-transparency checkerboard for image attachments.
+ *
+ * Image attachments render with no backdrop of their own, so a transparent PNG
+ * composites straight onto whatever surface is behind it — in a dark theme that
+ * is near-black, and black artwork or text inside the PNG disappears into it.
+ * The checkerboard marks the region as transparent using the convention every
+ * image editor already uses, and lifts it slightly off the surrounding surface
+ * so dark content keeps some separation.
+ *
+ * The two tones are translucent white/black rather than palette colors so the
+ * texture tracks whatever is painted behind it: every dark theme, every light
+ * theme, and the lightbox's own near-black backdrop all get the same relative
+ * step without a per-theme table to keep in sync.
+ *
+ * Deliberately low contrast — this sits *behind* user content and must never
+ * compete with it. The two alpha stops are the only knobs; widen the gap
+ * between them for more texture rather than changing the tile size.
+ */
+@layer components {
+  :root {
+    --media-alpha-checker-base: 0 0 0 / 3.5%;
+    --media-alpha-checker-square: 0 0 0 / 7.5%;
+  }
+
+  .dark {
+    --media-alpha-checker-base: 255 255 255 / 4.5%;
+    --media-alpha-checker-square: 255 255 255 / 9%;
+  }
+
+  /* Set on the element that already clips to the image's painted box — the
+     progressive-image frame inline, the clip surface in the lightbox. */
+  [data-media-alpha] {
+    /* Two-tone 8px squares from a single repeating tile. Both stops are hard
+       so there is no gradient interpolation to soften the edges. */
+    background-image: repeating-conic-gradient(
+      rgb(var(--media-alpha-checker-square)) 0% 25%,
+      rgb(var(--media-alpha-checker-base)) 0% 50%
+    );
+    background-size: 1rem 1rem;
+  }
+}

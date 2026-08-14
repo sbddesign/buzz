@@ -16,6 +16,12 @@
 /** Legacy video extensions, used only when an imeta MIME type is absent. */
 const VIDEO_EXTENSIONS = ["mp4", "webm", "mov"] as const;
 
+/** Image MIME subtypes that cannot encode an alpha channel. */
+const OPAQUE_MIME_SUBTYPES = ["jpeg", "jpg", "pjpeg"] as const;
+
+/** Path extensions for those same always-opaque formats. */
+const OPAQUE_EXTENSIONS = ["jpg", "jpeg", "jfif", "pjpeg", "pjp"] as const;
+
 /** The lowercased path extension of a URL, ignoring query strings and hashes. */
 function urlPathExtension(src: string): string | undefined {
   let pathname: string;
@@ -44,6 +50,34 @@ export function isVideoMedia(src: string, imetaMime?: string): boolean {
   const ext = urlPathExtension(src);
   return (
     ext !== undefined && (VIDEO_EXTENSIONS as readonly string[]).includes(ext)
+  );
+}
+
+/**
+ * Whether `src` may carry an alpha channel, and so should render over the
+ * transparency checkerboard.
+ *
+ * Deliberately fails open: only formats that *cannot* encode alpha are ruled
+ * out. The asymmetry is intentional — a checkerboard behind an opaque image is
+ * completely covered once it decodes, whereas a missed transparent image
+ * composites straight onto the app surface, which is how black artwork inside a
+ * PNG became invisible against the dark theme.
+ *
+ * As with `isVideoMedia`, the imeta MIME type is authoritative when present and
+ * the path extension is only a fallback for legacy events that predate the tag.
+ */
+export function hasAlphaChannel(src: string, imetaMime?: string): boolean {
+  if (imetaMime) {
+    const subtype = imetaMime
+      .toLowerCase()
+      .split("/")[1]
+      ?.split(";")[0]
+      ?.trim();
+    return !(OPAQUE_MIME_SUBTYPES as readonly string[]).includes(subtype ?? "");
+  }
+  const ext = urlPathExtension(src);
+  return (
+    ext === undefined || !(OPAQUE_EXTENSIONS as readonly string[]).includes(ext)
   );
 }
 

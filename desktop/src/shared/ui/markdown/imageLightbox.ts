@@ -32,6 +32,7 @@ export type ImageGalleryDirection = "forward" | "backward";
 export type ImageGalleryItem = {
   alt: string | undefined;
   dim?: string;
+  hasAlpha?: boolean;
   resolvedSrc: string;
   src: string | undefined;
   thumbnailBox?: ImageLightboxBox;
@@ -319,6 +320,10 @@ function imageGalleryItemFromTrigger(
   return {
     alt: trigger.dataset.imageLightboxAlt || undefined,
     dim: trigger.dataset.imageLightboxDim || undefined,
+    // Carried on the trigger rather than re-derived here: the thumbnail already
+    // classified this URL against its imeta MIME type, which a gallery walk of
+    // the DOM no longer has access to.
+    hasAlpha: trigger.dataset.imageLightboxAlpha !== undefined,
     resolvedSrc,
     src: trigger.dataset.imageLightboxSrc || undefined,
     thumbnailBox: thumbnail?.box,

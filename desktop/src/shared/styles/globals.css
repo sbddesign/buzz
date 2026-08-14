@@ -13,6 +13,7 @@
 @import "./globals/terminal.css";
 @import "./globals/utilities.css";
 @import "./globals/media-controls.css";
+@import "./globals/media-alpha.css";
 @import "./globals/avatar-framing.css";
 @import "./globals/image-lightbox.css";
 @import "./globals/video-review.css";

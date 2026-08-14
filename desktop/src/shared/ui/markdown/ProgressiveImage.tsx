@@ -1,6 +1,7 @@
 import * as React from "react";
 
 import { cn } from "@/shared/lib/cn";
+import { useSmoothCorners } from "@/shared/ui/smoothCorners";
 
 const IMAGE_CLASS =
   "absolute inset-0 block h-full w-full rounded-2xl object-contain";
@@ -27,6 +28,7 @@ type ProgressiveImageProps = {
   onFullLoad: (image: HTMLImageElement) => void;
   onThumbnailLoad: (image: HTMLImageElement) => void;
   resolvedSrc: string | undefined;
+  showAlphaCheckerboard: boolean;
   showSpoilerSize: boolean;
   style: React.CSSProperties | undefined;
   thumbnailRef: React.RefObject<HTMLImageElement | null>;
@@ -41,12 +43,18 @@ export function ProgressiveImage({
   onFullLoad,
   onThumbnailLoad,
   resolvedSrc,
+  showAlphaCheckerboard,
   showSpoilerSize,
   style,
   thumbnailRef,
   thumbSrc,
   width,
 }: ProgressiveImageProps) {
+  const frameRef = React.useRef<HTMLSpanElement | null>(null);
+  // The images carry their own squircle mask, so the checkerboard has to be
+  // clipped identically or it peeks out around every corner. Same box, same
+  // radius, same smoothing — the two masks land on top of each other.
+  useSmoothCorners(frameRef, { enabled: showAlphaCheckerboard });
   const thumbnailSrc = isSameImageSource(thumbSrc, resolvedSrc)
     ? undefined
     : thumbSrc;
@@ -94,8 +102,13 @@ export function ProgressiveImage({
 
   return (
     <span
-      className="relative block max-w-full"
+      className={cn(
+        "relative block max-w-full",
+        showAlphaCheckerboard && "rounded-2xl",
+      )}
+      data-media-alpha={showAlphaCheckerboard ? "" : undefined}
       data-progressive-image-frame=""
+      ref={frameRef}
       style={frameStyle}
     >
       {thumbnailSrc ? (

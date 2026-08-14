@@ -72,7 +72,8 @@ import {
   type MediaContextMenuPosition,
   useDismissMediaContextMenu,
 } from "./markdown/MediaContextMenu";
-import { isVideoMedia } from "./markdown/mediaEntry";
+import { ImageMosaic } from "./markdown/ImageMosaic";
+import { hasAlphaChannel, isVideoMedia } from "./markdown/mediaEntry";
 import {
   clampImageLightboxZoom,
   type ImageGalleryDirection,
@@ -140,6 +141,7 @@ import {
 type ImageBlockProps = {
   alt: string | undefined;
   dim?: string;
+  hasAlpha: boolean;
   resolvedSrc: string | undefined;
   src: string | undefined;
   thumbSrc?: string;
@@ -175,6 +177,7 @@ function ImageZoomOverlay({
   alt,
   galleryIndex = 0,
   galleryItems,
+  hasAlpha,
   onCopy,
   onDownload,
   onClose,
@@ -187,6 +190,7 @@ function ImageZoomOverlay({
   alt: string | undefined;
   galleryIndex?: number;
   galleryItems?: ImageGalleryItem[];
+  hasAlpha: boolean;
   onCopy: (src: string | undefined) => void;
   onDownload: (src: string | undefined) => void;
   onClose: () => void;
@@ -202,13 +206,14 @@ function ImageZoomOverlay({
     () => [
       {
         alt,
+        hasAlpha,
         resolvedSrc,
         src,
         thumbnailBox: sourceBox,
         thumbnailCornerRadii: sourceCornerRadii,
       },
     ],
-    [alt, resolvedSrc, sourceBox, sourceCornerRadii, src],
+    [alt, hasAlpha, resolvedSrc, sourceBox, sourceCornerRadii, src],
   );
   const items =
     galleryItems && galleryItems.length > 0
@@ -831,6 +836,7 @@ function ImageZoomOverlay({
           <div
             ref={imageFrameSurfaceRef}
             className="relative h-full w-full overflow-hidden"
+            data-media-alpha={currentItem.hasAlpha ? "" : undefined}
             style={{
               ...imageLightboxCornerRadiiStyle(frameCornerRadii),
               transitionDuration: `${imageTransitionDuration}ms`,
@@ -1008,7 +1014,14 @@ function ImageZoomOverlay({
  * body on hover. Keeping the trigger stable and managing the lightbox via
  * React state avoids that repaint.
  */
-function ImageBlock({ alt, dim, resolvedSrc, src, thumbSrc }: ImageBlockProps) {
+function ImageBlock({
+  alt,
+  dim,
+  hasAlpha,
+  resolvedSrc,
+  src,
+  thumbSrc,
+}: ImageBlockProps) {
   const [lightboxState, setLightboxState] = React.useState<{
     galleryIndex: number;
     galleryItems?: ImageGalleryItem[];
@@ -1067,6 +1080,12 @@ function ImageBlock({ alt, dim, resolvedSrc, src, thumbSrc }: ImageBlockProps) {
     dim,
     resolvedSrc,
   );
+
+  // Only paint where the reserved box *is* the image: a dim-less image pins a
+  // fixed 384x256 and letterboxes inside it, so a checkerboard there would read
+  // as transparent padding it does not have. Buzz uploads always tag `dim`;
+  // untagged URLs pick it up once a decode caches their real size.
+  const showAlphaCheckerboard = hasAlpha && !useFixedReserveBox;
 
   const currentSpoilerMediaSize =
     spoilerMediaSize?.src === resolvedSrc ? spoilerMediaSize : null;
@@ -1136,6 +1155,7 @@ function ImageBlock({ alt, dim, resolvedSrc, src, thumbSrc }: ImageBlockProps) {
             {
               alt,
               dim,
+              hasAlpha: showAlphaCheckerboard,
               resolvedSrc,
               src,
               thumbnailBox: sourceBox,
@@ -1152,7 +1172,7 @@ function ImageBlock({ alt, dim, resolvedSrc, src, thumbSrc }: ImageBlockProps) {
         sourceScope,
       });
     },
-    [alt, dim, resolvedSrc, src],
+    [alt, dim, resolvedSrc, showAlphaCheckerboard, src],
   );
 
   const handleImageTriggerClick = () => {
@@ -1198,6 +1218,7 @@ function ImageBlock({ alt, dim, resolvedSrc, src, thumbSrc }: ImageBlockProps) {
           lightboxState && "opacity-0",
         )}
         data-image-lightbox-resolved-src={resolvedSrc}
+        data-image-lightbox-alpha={showAlphaCheckerboard ? "" : undefined}
         data-image-lightbox-alt={alt}
         data-image-lightbox-dim={dim}
         data-image-lightbox-src={src}
@@ -1216,6 +1237,7 @@ function ImageBlock({ alt, dim, resolvedSrc, src, thumbSrc }: ImageBlockProps) {
           onFullLoad={handleImageLoad}
           onThumbnailLoad={updateSpoilerMediaSize}
           resolvedSrc={resolvedSrc}
+          showAlphaCheckerboard={showAlphaCheckerboard}
           showSpoilerSize={Boolean(hiddenSpoilerMediaSize)}
           style={spoilerMediaStyle}
           thumbnailRef={thumbnailImageRef}
@@ -1238,6 +1260,7 @@ function ImageBlock({ alt, dim, resolvedSrc, src, thumbSrc }: ImageBlockProps) {
           alt={alt}
           galleryIndex={lightboxState.galleryIndex}
           galleryItems={lightboxState.galleryItems}
+          hasAlpha={showAlphaCheckerboard}
           onCopy={handleCopyImage}
           onDownload={handleDownload}
           onClose={() => setLightboxState(null)}
@@ -1249,30 +1272,6 @@ function ImageBlock({ alt, dim, resolvedSrc, src, thumbSrc }: ImageBlockProps) {
         />
       ) : null}
     </>
-  );
-}
-
-function ImageMosaic({ children }: { children: React.ReactNode[] }) {
-  const mosaicRef = React.useRef<HTMLDivElement | null>(null);
-  const isTriptych = children.length === 3;
-  const hasOddTail = children.length > 3 && children.length % 2 === 1;
-  useSmoothCorners(mosaicRef);
-
-  return (
-    <div
-      className={cn(
-        "mt-1 grid w-full min-w-0 max-w-lg grid-cols-2 gap-1.5 overflow-hidden rounded-2xl [&_br]:hidden [&_[data-block-media]]:min-h-0 [&_[data-block-media]]:max-w-none [&_[data-block-media]]:overflow-hidden [&_[data-block-media]>button]:m-0 [&_[data-block-media]>button]:h-full [&_[data-block-media]>button]:w-full [&_[data-block-media]>button]:max-w-none [&_[data-block-media]>button]:rounded-none [&_[data-block-media]_[data-progressive-image-frame]]:!h-full [&_[data-block-media]_[data-progressive-image-frame]]:!w-full [&_[data-block-media]_img]:!h-full [&_[data-block-media]_img]:!max-h-none [&_[data-block-media]_img]:!w-full [&_[data-block-media]_img]:!max-w-none [&_[data-block-media]_img]:rounded-none [&_[data-block-media]_img]:object-cover",
-        isTriptych
-          ? "h-80 grid-rows-2 [&_[data-block-media]]:h-auto [&_[data-block-media]:first-child]:row-span-2"
-          : "[&_[data-block-media]]:h-48",
-        hasOddTail && "[&_[data-block-media]:last-child]:col-span-2",
-      )}
-      data-image-mosaic=""
-      data-image-mosaic-count={children.length}
-      ref={mosaicRef}
-    >
-      {children}
-    </div>
   );
 }
 
@@ -1540,6 +1539,7 @@ function createMarkdownComponents(
           <ImageBlock
             alt={alt}
             dim={entry?.dim}
+            hasAlpha={src ? hasAlphaChannel(src, entry?.m) : false}
             resolvedSrc={resolvedSrc}
             src={src}
             thumbSrc={entry?.thumb ? rewriteRelayUrl(entry.thumb) : undefined}
